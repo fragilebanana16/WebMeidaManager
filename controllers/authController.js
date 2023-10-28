@@ -163,7 +163,7 @@ exports.login = catchAsync(async (req, res, next) => {
   }
 
   const token = signToken(user._id);
-
+  console.log(user);
   res.status(200).json({
     status: "success",
     message: "Logged in successfully!",

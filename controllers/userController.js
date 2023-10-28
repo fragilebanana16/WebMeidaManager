@@ -42,7 +42,6 @@ exports.updateMe = catchAsync(async (req, res, next) => {
 
 exports.getUsers = catchAsync(async (req, res, next) => {
   const all_users = await User.find({}).select("name _id");
-  console.log("getUsers");
   const this_user = req.user;
 
   const remaining_users = all_users.filter(
@@ -61,7 +60,7 @@ exports.getUsers = catchAsync(async (req, res, next) => {
 exports.getAllVerifiedUsers = catchAsync(async (req, res, next) => {
   const all_users = await User.find({
     verified: true,
-  }).select("firstName lastName _id");
+  }).select("name _id");
 
   const remaining_users = all_users.filter(
     (user) => user._id.toString() !== req.user._id.toString()
@@ -214,7 +213,7 @@ exports.getCallLogs = catchAsync(async (req, res, next) => {
       call_logs.push({
         id: elm._id,
         img: other_user.avatar,
-        name: other_user.firstName,
+        name: other_user.name,
         online: true,
         incoming: false,
         missed,

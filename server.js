@@ -36,6 +36,7 @@ const FriendRequest = require("./models/friendRequest");
 const OneToOneMessage = require("./models/OneToOneMessage");
 const { json } = require("body-parser");
 
+
 // Add this
 // Create an io server and allow for CORS from http://localhost:3000 with GET and POST methods
 const io = new Server(server, {
@@ -232,10 +233,35 @@ server.listen(port, () => {
 // Add this
 // Listen for when the client connects via socket.io-client
 io.on("connection", async (socket) => {
+
+  const onlineUsers = [];
+  for (let [id, socket] of io.of("/").sockets) {
+    onlineUsers.push({
+      userSocketId: id,
+      userID: socket.handshake.query["user_id"],
+    });
+  }
+
+  console.log("onlineUsers id:" + JSON.stringify(onlineUsers));
+  // userController.onlineUsers = onlineUsers; // update server side
+  // socket.emit("online_users_updated", onlineUsers); // tell client to fetch
+
   // console.log(JSON.stringify(socket.handshake.query));
   const user_id = socket.handshake.query["user_id"];
 
   console.log(`User connected, socket id is:${socket.id}`);
+
+  console.log("Server emit user_connected...")
+  socket.broadcast.emit("user_connected", {
+    userSocketID: socket.id,
+    userID: user_id,
+  });
+
+  socket.on("disconnect", () => {
+    console.log("one user_disconnected"); 
+    socket.broadcast.emit("user_disconnected", user_id);
+  });
+
   if (user_id != null && Boolean(user_id)) {
     try {
       await User.findByIdAndUpdate(user_id, {
@@ -246,6 +272,11 @@ io.on("connection", async (socket) => {
       console.log("userconnect error:" + e);
     }
   }
+
+  
+  socket.on("typing", data => (
+    socket.broadcast.emit("typingResponse", data)
+  ))
 
   // We can write our socket event listeners in here...
   socket.on("friend_request", async (data) => {
@@ -305,9 +336,14 @@ io.on("connection", async (socket) => {
 
     // db.books.find({ authors: { $elemMatch: { name: "John Smith" } } })
 
-    console.log("existing_conversations-" + existing_conversations);
+    // console.log("existing_conversations-" + existing_conversations);
 
     callback(existing_conversations);
+  });
+
+  socket.on("get_online_users", async (callback) => {
+    console.log("server get_online_users");
+    callback(onlineUsers);
   });
 
   socket.on("start_conversation", async (data) => {
@@ -319,7 +355,7 @@ io.on("connection", async (socket) => {
 
     const existing_conversations = await OneToOneMessage.find({
       participants: { $size: 2, $all: [to, from] },
-    }).populate("participants", "firstName lastName _id email status");
+    }).populate("participants", "name _id email status");
 
     console.log(existing_conversations[0], "Existing Conversation");
 
@@ -346,10 +382,15 @@ io.on("connection", async (socket) => {
 
   socket.on("get_messages", async (data, callback) => {
     try {
-      const { messages } = await OneToOneMessage.findById(
+      const msgs = await OneToOneMessage.findById(
         data.conversation_id
       ).select("messages");
-      callback(messages);
+      if(msgs){
+        callback(msgs.messages);
+      }
+      else{
+        console.log("get_messages msgs null")
+      }
     } catch (error) {
       console.log(error);
     }
@@ -427,6 +468,8 @@ io.on("connection", async (socket) => {
     // emit outgoing_message -> from user
   });
 
+
+
   // -------------- HANDLE SOCKET DISCONNECTION ----------------- //
 
 
@@ -451,250 +494,3 @@ process.on("unhandledRejection", (err) => {
     process.exit(1); //  Exit Code 1 indicates that a container shut down, either because of an application failure.
   });
 });
-  // -------------- HANDLE AUDIO CALL SOCKET EVENTS ----------------- //
-
-  // handle start_audio_call event
-  // socket.on("start_audio_call", async (data) => {
-  //   const { from, to, roomID } = data;
-
-  //   const to_user = await User.findById(to);
-  //   const from_user = await User.findById(from);
-
-  //   console.log("to_user", to_user);
-
-  //   // send notification to receiver of call
-  //   io.to(to_user?.socket_id).emit("audio_call_notification", {
-  //     from: from_user,
-  //     roomID,
-  //     streamID: from,
-  //     userID: to,
-  //     userName: to,
-  //   });
-  // });
-
-  // handle audio_call_not_picked
-  // socket.on("audio_call_not_picked", async (data) => {
-  //   console.log(data);
-  //   // find and update call record
-  //   const { to, from } = data;
-
-  //   const to_user = await User.findById(to);
-
-  //   await AudioCall.findOneAndUpdate(
-  //     {
-  //       participants: { $size: 2, $all: [to, from] },
-  //     },
-  //     { verdict: "Missed", status: "Ended", endedAt: Date.now() }
-  //   );
-
-  //   // TODO => emit call_missed to receiver of call
-  //   io.to(to_user?.socket_id).emit("audio_call_missed", {
-  //     from,
-  //     to,
-  //   });
-  // });
-
-  // // handle audio_call_accepted
-  // socket.on("audio_call_accepted", async (data) => {
-  //   const { to, from } = data;
-
-  //   const from_user = await User.findById(from);
-
-  //   // find and update call record
-  //   await AudioCall.findOneAndUpdate(
-  //     {
-  //       participants: { $size: 2, $all: [to, from] },
-  //     },
-  //     { verdict: "Accepted" }
-  //   );
-
-  //   // TODO => emit call_accepted to sender of call
-  //   io.to(from_user?.socket_id).emit("audio_call_accepted", {
-  //     from,
-  //     to,
-  //   });
-  // });
-
-  // // handle audio_call_denied
-  // socket.on("audio_call_denied", async (data) => {
-  //   // find and update call record
-  //   const { to, from } = data;
-
-  //   await AudioCall.findOneAndUpdate(
-  //     {
-  //       participants: { $size: 2, $all: [to, from] },
-  //     },
-  //     { verdict: "Denied", status: "Ended", endedAt: Date.now() }
-  //   );
-
-  //   const from_user = await User.findById(from);
-  //   // TODO => emit call_denied to sender of call
-
-  //   io.to(from_user?.socket_id).emit("audio_call_denied", {
-  //     from,
-  //     to,
-  //   });
-  // });
-
-  // // handle user_is_busy_audio_call
-  // socket.on("user_is_busy_audio_call", async (data) => {
-  //   const { to, from } = data;
-  //   // find and update call record
-  //   await AudioCall.findOneAndUpdate(
-  //     {
-  //       participants: { $size: 2, $all: [to, from] },
-  //     },
-  //     { verdict: "Busy", status: "Ended", endedAt: Date.now() }
-  //   );
-
-  //   const from_user = await User.findById(from);
-  //   // TODO => emit on_another_audio_call to sender of call
-  //   io.to(from_user?.socket_id).emit("on_another_audio_call", {
-  //     from,
-  //     to,
-  //   });
-  // });
-
-  // // --------------------- HANDLE VIDEO CALL SOCKET EVENTS ---------------------- //
-
-  // // handle start_video_call event
-  // socket.on("start_video_call", async (data) => {
-  //   const { from, to, roomID } = data;
-
-  //   console.log(data);
-
-  //   const to_user = await User.findById(to);
-  //   const from_user = await User.findById(from);
-
-  //   console.log("to_user", to_user);
-
-  //   // send notification to receiver of call
-  //   io.to(to_user?.socket_id).emit("video_call_notification", {
-  //     from: from_user,
-  //     roomID,
-  //     streamID: from,
-  //     userID: to,
-  //     userName: to,
-  //   });
-  // });
-
-  // // handle video_call_not_picked
-  // socket.on("video_call_not_picked", async (data) => {
-  //   console.log(data);
-  //   // find and update call record
-  //   const { to, from } = data;
-
-  //   const to_user = await User.findById(to);
-
-  //   await VideoCall.findOneAndUpdate(
-  //     {
-  //       participants: { $size: 2, $all: [to, from] },
-  //     },
-  //     { verdict: "Missed", status: "Ended", endedAt: Date.now() }
-  //   );
-
-  //   // TODO => emit call_missed to receiver of call
-  //   io.to(to_user?.socket_id).emit("video_call_missed", {
-  //     from,
-  //     to,
-  //   });
-  // });
-
-  // // handle video_call_accepted
-  // socket.on("video_call_accepted", async (data) => {
-  //   const { to, from } = data;
-
-  //   const from_user = await User.findById(from);
-
-  //   // find and update call record
-  //   await VideoCall.findOneAndUpdate(
-  //     {
-  //       participants: { $size: 2, $all: [to, from] },
-  //     },
-  //     { verdict: "Accepted" }
-  //   );
-
-  //   // TODO => emit call_accepted to sender of call
-  //   io.to(from_user?.socket_id).emit("video_call_accepted", {
-  //     from,
-  //     to,
-  //   });
-  // });
-
-  // // handle video_call_denied
-  // socket.on("video_call_denied", async (data) => {
-  //   // find and update call record
-  //   const { to, from } = data;
-
-  //   await VideoCall.findOneAndUpdate(
-  //     {
-  //       participants: { $size: 2, $all: [to, from] },
-  //     },
-  //     { verdict: "Denied", status: "Ended", endedAt: Date.now() }
-  //   );
-
-  //   const from_user = await User.findById(from);
-  //   // TODO => emit call_denied to sender of call
-
-  //   io.to(from_user?.socket_id).emit("video_call_denied", {
-  //     from,
-  //     to,
-  //   });
-  // });
-
-  // // handle user_is_busy_video_call
-  // socket.on("user_is_busy_video_call", async (data) => {
-  //   const { to, from } = data;
-  //   // find and update call record
-  //   await VideoCall.findOneAndUpdate(
-  //     {
-  //       participants: { $size: 2, $all: [to, from] },
-  //     },
-  //     { verdict: "Busy", status: "Ended", endedAt: Date.now() }
-  //   );
-
-  //   const from_user = await User.findById(from);
-  //   // TODO => emit on_another_video_call to sender of call
-  //   io.to(from_user?.socket_id).emit("on_another_video_call", {
-  //     from,
-  //     to,
-  //   });
-  // });
-
-
-  // app.get("/video", function (req, res) {
-//   console.log("getvideo");
-//   // Ensure there is a range given for the video
-//   const range = req.headers.range;
-//   if (!range) {
-//     res.status(400).send("Requires Range header");
-//   }
-
-//   // get video stats (about 61MB)
-//   const videoPath = "bigbuck.mp4";
-//   const videoSize = fs.statSync("bigbuck.mp4").size;
-
-//   // Parse Range
-//   // Example: "bytes=32324-"
-//   const CHUNK_SIZE = 10 ** 6; // 1MB
-//   const start = Number(range.replace(/\D/g, ""));
-//   const end = Math.min(start + CHUNK_SIZE, videoSize - 1);
-
-//   // Create headers
-//   const contentLength = end - start + 1;
-//   const headers = {
-//     "Content-Range": `bytes ${start}-${end}/${videoSize}`,
-//     "Accept-Ranges": "bytes",
-//     "Content-Length": contentLength,
-//     "Content-Type": "video/mp4",
-//   };
-
-//   // HTTP Status 206 for Partial Content
-//   res.writeHead(206, headers);
-
-//   // create video read stream for this particular chunk
-//   const videoStream = fs.createReadStream(videoPath, { start, end });
-
-//   // Stream the video chunk to the client
-//   videoStream.pipe(res);
-// });
