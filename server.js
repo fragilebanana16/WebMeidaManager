@@ -35,6 +35,9 @@ const User = require("./models/user");
 const FriendRequest = require("./models/friendRequest");
 const OneToOneMessage = require("./models/OneToOneMessage");
 const { json } = require("body-parser");
+const { InMemorySessionStore } = require("./utils/sessionStore");
+
+const {  sessionMiddleware,  wrap,} = require("./controllers/serverController");
 
 
 // Add this
@@ -230,9 +233,62 @@ server.listen(port, () => {
   console.log(`App running on port ${port} ...`);
 });
 
+const crypto = require("crypto");
+const randomId = () => crypto.randomBytes(8).toString("hex");
+
+const sessionStore = new InMemorySessionStore();
+
+
+io.use(wrap(sessionMiddleware));
+
+io.use((socket, next) => {
+const sessionID = socket.handshake.query["session_ID"];
+ if (sessionID) {
+    const session = sessionStore.findSession(sessionID);
+    if (session) {
+      socket.sessionID = sessionID;
+      socket.userID = session.userID;
+      socket.username = session.username;
+      return next();
+    }
+  }
+
+  const user_id = socket.handshake.query["user_id"];
+  const user_name = socket.handshake.query["user_name"];
+  console.log("session id:" + user_id);
+  console.log("session name:" + user_name);
+
+  if (!user_name) {
+    return next(new Error("invalid username"));
+  }
+
+  socket.sessionID = randomId();
+  socket.userID = user_id;
+  socket.username = user_id;
+  next();
+});
+
 // Add this
 // Listen for when the client connects via socket.io-client
 io.on("connection", async (socket) => {
+  // redisCliet.get('username', (error, username)=>{
+  //   if (error) {
+  //     console.log(error);
+  //   }
+
+  //   if (username != null) {
+  //     console.log("redis hit:", username)
+  //   }else{
+  //     console.log("redis miss")
+  //     redisCliet.setex('username', 10, socket.username);
+  //   }
+  // })
+
+  sessionStore.saveSession(socket.sessionID, {
+    userID: socket.userID,
+    username: socket.username,
+    connected: true,
+  });
 
   const onlineUsers = [];
   for (let [id, socket] of io.of("/").sockets) {

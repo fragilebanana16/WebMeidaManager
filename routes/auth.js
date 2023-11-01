@@ -2,7 +2,8 @@ const router = require("express").Router();
 
 const authController = require("../controllers/authController");
 
-router.post("/login", authController.login);
+// chainable route handlers
+router.route("/login").post(authController.handleLogin).post(authController.login);
 
 router.post("/register", authController.register);
 // router.post("/verify", authController.verifyOTP);

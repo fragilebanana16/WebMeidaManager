@@ -2,7 +2,6 @@ const jwt = require("jsonwebtoken");
 const otpGenerator = require("otp-generator");
 const mailService = require("../services/mailer");
 const crypto = require("crypto");
-
 const filterObj = require("../utils/filterObj");
 
 // Model
@@ -16,10 +15,9 @@ const { json } = require("body-parser");
 // this function will return you jwt token
 const signToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET);
 
+
+
 // Register New User
-
-
-
 exports.register = catchAsync(async (req, res, next) => {
   const { name, email, password } = req.body;
 
@@ -49,90 +47,32 @@ exports.register = catchAsync(async (req, res, next) => {
   } 
 });
 
-// exports.sendOTP = catchAsync(async (req, res, next) => {
-//   const { userId } = req;
-//   const new_otp = otpGenerator.generate(6, {
-//     upperCaseAlphabets: false,
-//     specialChars: false,
-//     lowerCaseAlphabets: false,
-//   });
-
-//   const otp_expiry_time = Date.now() + 10 * 60 * 1000; // 10 Mins after otp is sent
-
-//   const user = await User.findByIdAndUpdate(userId, {
-//     otp_expiry_time: otp_expiry_time,
-//   });
-
-//   user.otp = new_otp.toString();
-
-//   await user.save({ new: true, validateModifiedOnly: true });
-
-//   console.log(new_otp);
-
-//   // TODO send mail
-//   mailService.sendEmail({
-//     from: "shreyanshshah242@gmail.com",
-//     to: user.email,
-//     subject: "Verification OTP",
-//     html: otp(user.firstName, new_otp),
-//     attachments: [],
-//   });
-
-//   res.status(200).json({
-//     status: "success",
-//     message: "OTP Sent Successfully!",
-//   });
-// });
-
-// exports.verifyOTP = catchAsync(async (req, res, next) => {
-//   // verify otp and update user accordingly
-//   const { email, otp } = req.body;
-//   const user = await User.findOne({
-//     email,
-//     otp_expiry_time: { $gt: Date.now() }, // before expired
-//   });
-
-//   if (!user) {
-//     return res.status(400).json({
-//       status: "error",
-//       message: "Email is invalid or OTP expired",
-//     });
-//   }
-
-//   if (user.verified) {
-//     return res.status(400).json({
-//       status: "error",
-//       message: "Email is already verified",
-//     });
-//   }
-
-//   if (!(await user.correctOTP(otp, user.otp))) {
-//     res.status(400).json({
-//       status: "error",
-//       message: "OTP is incorrect",
-//     });
-
-//     return;
-//   }
-
-//   // OTP is correct
-
-//   user.verified = true;
-//   user.otp = undefined;
-//   await user.save({ new: true, validateModifiedOnly: true });
-
-//   const token = signToken(user._id);
-
-//   res.status(200).json({
-//     status: "success",
-//     message: "OTP verified Successfully!",
-//     token,
-//     user_id: user._id,
-//   });
-// });
+exports.handleLogin = async (req, res, next) => {
+  console.log("handleLogin", req.session)
+  req.session.user = "dwadwad"
+  // req.session.save();
+  if (req.session.user && req.session.user.name) {
+    res.json({
+      status: "success",
+      message: "Using Session - Logged in successfully!",
+      token: req.session.user.token,
+      user_id: req.session.user.userid,
+    });
+  } else {
+  console.log("Failed to log in with session, try db acsess..")
+  next();
+//[TODO]session still does not have username etc. after login with db
+    // res.json({
+    //   status: "error",
+    //   message: "Using Session Failed Log in...",
+    // });
+  }
+};
 
 // User Login
 exports.login = catchAsync(async (req, res, next) => {
+
+
   const { email, password } = req.body;
   if (!email || !password) {
     res.status(400).json({
@@ -163,7 +103,15 @@ exports.login = catchAsync(async (req, res, next) => {
   }
 
   const token = signToken(user._id);
-  console.log(user);
+  // console.log(user);
+  req.session.user = {
+    username: user.name,
+    userid: user._id,
+    token: token,
+  };
+
+  // req.session.save();
+  console.log("session after login:", req.session)
   res.status(200).json({
     status: "success",
     message: "Logged in successfully!",
