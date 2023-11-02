@@ -47,11 +47,25 @@ exports.register = catchAsync(async (req, res, next) => {
   } 
 });
 
+exports.test = catchAsync(async (req, res, next) => {
+  console.log("testRoute", req.session)
+  req.session.test = "teststr"
+ 
+  return res.status(400).json({
+    status: "test status",
+    message: "test test",
+  });
+});
+
 exports.handleLogin = async (req, res, next) => {
-  console.log("handleLogin", req.session)
-  req.session.user = "dwadwad"
+  if (req.session.user) {
+    console.log("Using Session - Logged in successfully!")
+  }
+  
   // req.session.save();
   if (req.session.user && req.session.user.name) {
+     console.log("Using Session - Logged in successfully!")
+
     res.json({
       status: "success",
       message: "Using Session - Logged in successfully!",
@@ -71,8 +85,8 @@ exports.handleLogin = async (req, res, next) => {
 
 // User Login
 exports.login = catchAsync(async (req, res, next) => {
-
-
+  console.log("handleLogin", req.session)
+  // req.session.user = "dwadwad"
   const { email, password } = req.body;
   if (!email || !password) {
     res.status(400).json({
@@ -109,9 +123,8 @@ exports.login = catchAsync(async (req, res, next) => {
     userid: user._id,
     token: token,
   };
-
   // req.session.save();
-  console.log("session after login:", req.session)
+  // console.log("session after login:", req.session)
   res.status(200).json({
     status: "success",
     message: "Logged in successfully!",

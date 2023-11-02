@@ -80,6 +80,8 @@ const getFilePath = (fileName, fileId) => {
 };
 
 app.post('/upload-request', (req, res) => {
+  console.log("File request..")
+
   if (!req.body || !req.body.fileName) {
     res.status(400).json({ message: 'Missing "fileName"' });
   } else {
@@ -90,6 +92,8 @@ app.post('/upload-request', (req, res) => {
 });
 
 app.get('/upload-status', (req, res) => {
+  console.log("File status..")
+
   if (req.query && req.query.fileName && req.query.fileId) {
     getFileDetails(getFilePath(req.query.fileName, req.query.fileId))
       .then((stats) => {
@@ -103,6 +107,8 @@ app.get('/upload-status', (req, res) => {
 });
 
 app.post('/upload', (req, res) => {
+  console.log("File upload..")
+
   const contentRange = req.headers['content-range'];
   const fileId = req.headers['x-file-id'];
 
@@ -134,6 +140,7 @@ app.post('/upload', (req, res) => {
   const busboy = Busboy({ headers: req.headers });
 
   busboy.on('file', (_, file, fileName) => {
+    console.log('file');
     // https://github.com/tulios/kafkajs/issues/1019 
     // https://github.com/mscdex/busboy/issues/20
     // https://github.com/expressjs/multer/issues/1104
@@ -226,9 +233,6 @@ app.get('/videos/:filename', (req, res) => {
 })
 
 const port = process.env.PORT || 8000;
-
-
-
 server.listen(port, () => {
   console.log(`App running on port ${port} ...`);
 });

@@ -47,7 +47,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: 'http://localhost:3000',
+    origin: 'http://localhost:3000', // wlan文件上传需要设置为固定ip
 
     methods: ["GET", "PATCH", "POST", "DELETE", "PUT"],
     credentials: true, //
@@ -99,6 +99,7 @@ app.use(
 app.use(mongosanitize());
 
 app.use(xss());
+
 app.use(sessionMiddleware);
 app.use(routes);
 module.exports = app;

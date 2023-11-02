@@ -13,7 +13,7 @@ const sessionMiddleware = session({
     // 不过，前提是必须同时设置Secure属性（Cookie 只能通过 HTTPS 协议发送），否则无效。
     // secure: true, 
     // sameSite:"none",
-    path:'/',
+    path: "/",
       secure: false, // if true only transmit cookie over https
       httpOnly: false, // if true prevent client side JS from reading the cookie 
       maxAge: 1000 * 60 * 10 // session max age in miliseconds
