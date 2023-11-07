@@ -57,31 +57,26 @@ exports.test = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.handleLogin = async (req, res, next) => {
-  if (req.session.user) {
-    console.log("Using Session - Logged in successfully!")
-  }
-  
-  // req.session.save();
-  if (req.session.user && req.session.user.name) {
-     console.log("Using Session - Logged in successfully!")
-
+exports.handleTryLogin = catchAsync(async (req, res, next) => {
+  console.log("handleTryLogin req.session:",req.session)
+  if (req.session.user && req.session.user.username) {
+    console.log("Using Session Logged in successfully!")
     res.json({
       status: "success",
-      message: "Using Session - Logged in successfully!",
+      message: "Using Session Logged in successfully!",
       token: req.session.user.token,
       user_id: req.session.user.userid,
     });
   } else {
   console.log("Failed to log in with session, try db acsess..")
-  next();
+  // next();
 //[TODO]session still does not have username etc. after login with db
-    // res.json({
-    //   status: "error",
-    //   message: "Using Session Failed Log in...",
-    // });
+    res.status(401).json({
+      status: "info",
+      message: "Using Session Failed Log in...",
+    });
   }
-};
+});
 
 // User Login
 exports.login = catchAsync(async (req, res, next) => {
@@ -127,7 +122,7 @@ exports.login = catchAsync(async (req, res, next) => {
   // console.log("session after login:", req.session)
   res.status(200).json({
     status: "success",
-    message: "Logged in successfully!",
+    message: "Logged in by DB successfully!",
     token,
     user_id: user._id,
   });

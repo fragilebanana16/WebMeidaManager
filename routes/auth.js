@@ -3,7 +3,7 @@ const router = require("express").Router();
 const authController = require("../controllers/authController");
 
 // chainable route handlers
-router.route("/trylogin").post(authController.handleLogin);
+router.route("/trylogin").post(authController.handleTryLogin);
 router.route("/login").post(authController.login);
 
 router.post("/register", authController.register);
