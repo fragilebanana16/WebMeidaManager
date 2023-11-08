@@ -101,5 +101,11 @@ app.use(mongosanitize());
 app.use(xss());
 
 app.use(sessionMiddleware);
+
+app.use(function (req, res, next) {
+  req.session.test = "test";
+  next();
+});
 app.use(routes);
+
 module.exports = app;
