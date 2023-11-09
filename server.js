@@ -38,18 +38,9 @@ const { json } = require("body-parser");
 const { InMemorySessionStore } = require("./utils/sessionStore");
 
 const {  sessionMiddleware,  wrap,} = require("./controllers/serverController");
+const { authorizeUser } = require("./controllers/socketController");
 
 
-// Add this
-// Create an io server and allow for CORS from http://localhost:3000 with GET and POST methods
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"],
-    transports: ['websocket', 'polling'],
-    credentials: true
-  },
-});
 
 const DB = process.env.DATABASE.replace(
   "<PASSWORD>",
@@ -242,37 +233,19 @@ const randomId = () => crypto.randomBytes(8).toString("hex");
 
 // const sessionStore = new InMemorySessionStore();
 
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+    transports: ['websocket', 'polling'],
+    credentials: true
+  },
+});
 
 io.use(wrap(sessionMiddleware));
-// io.engine.use(sessionMiddleware);
-// io.use((socket, next) => {
-// const sessionID = socket.handshake.query["session_ID"];
-//  if (sessionID) {
-//     const session = sessionStore.findSession(sessionID);
-//     if (session) {
-//       socket.sessionID = sessionID;
-//       socket.userID = session.userID;
-//       socket.username = session.username;
-//       return next();
-//     }
-//   }
-
-//   const user_id = socket.handshake.query["user_id"];
-//   const user_name = socket.handshake.query["user_name"];
-
-  // if (!user_name) {
-  //   return next(new Error("invalid username"));
-  // }
-
-  // socket.sessionID = randomId();
-  // socket.userID = user_id;
-  // socket.username = user_id;
-//   next();
-// });
-
-// Add this
-// Listen for when the client connects via socket.io-client
+io.use(authorizeUser); // excute once
 io.on("connection", async (socket) => {
+  console.log(`A User connected, socket id is:${socket.id}`);
   console.log("==========[SOCKET]scoketio session user " + JSON.stringify(socket.request.session.user));
 
   // redisCliet.get('username', (error, username)=>{
@@ -309,9 +282,8 @@ io.on("connection", async (socket) => {
   // console.log(JSON.stringify(socket.handshake.query));
   const user_id = socket.handshake.query["user_id"];
 
-  console.log(`User connected, socket id is:${socket.id}`);
 
-  console.log("Server emit user_connected...")
+
   socket.broadcast.emit("user_connected", {
     userSocketID: socket.id,
     userID: user_id,
