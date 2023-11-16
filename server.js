@@ -311,22 +311,26 @@ io.on("connection", async (socket) => {
   ))
 
   // We can write our socket event listeners in here...
-  socket.on("friend_request", async (data) => {
-    const to = await User.findById(data.to).select("socket_id");
-    const from = await User.findById(data.from).select("socket_id");
+  socket.on("friend_request", async (data, cb) => {
+    console.log("friend_request data", JSON.stringify(data))
+    cb({errorMsg:"testSnack!"})
+    addFriend(socket, data, cb);
 
-    // create a friend request
-    await FriendRequest.create({
-      sender: data.from,
-      recipient: data.to,
-    });
-    // emit event request received to recipient
-    io.to(to?.socket_id).emit("new_friend_request", {
-      message: "New friend request received",
-    });
-    io.to(from?.socket_id).emit("request_sent", {
-      message: "Request Sent successfully!",
-    });
+    // const to = await User.findById(data.to).select("socket_id");
+    // const from = await User.findById(data.from).select("socket_id");
+
+    // // create a friend request
+    // await FriendRequest.create({
+    //   sender: data.from,
+    //   recipient: data.to,
+    // });
+    // // emit event request received to recipient
+    // io.to(to?.socket_id).emit("new_friend_request", {
+    //   message: "New friend request received",
+    // });
+    // io.to(from?.socket_id).emit("request_sent", {
+    //   message: "Request Sent successfully!",
+    // });
   });
 
   socket.on("accept_request", async (data) => {
