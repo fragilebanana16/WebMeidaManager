@@ -38,7 +38,7 @@ const { json } = require("body-parser");
 const { InMemorySessionStore } = require("./utils/sessionStore");
 
 const {  sessionMiddleware,  wrap,} = require("./controllers/serverController");
-const { authorizeUser } = require("./controllers/socketController");
+const { authorizeUser, addFriend } = require("./controllers/socketController");
 
 
 
@@ -313,7 +313,7 @@ io.on("connection", async (socket) => {
   // We can write our socket event listeners in here...
   socket.on("friend_request", async (data, cb) => {
     console.log("friend_request data", JSON.stringify(data))
-    cb({errorMsg:"testSnack!"})
+    // cb({errorMsg:"testSnack!"})
     addFriend(socket, data, cb);
 
     // const to = await User.findById(data.to).select("socket_id");
