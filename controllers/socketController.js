@@ -1,22 +1,32 @@
 const redisClient = require("../utils/redis");
 
 module.exports.authorizeUser = (socket, next) => {
-  if (!socket.request.session || !socket.request.session.user) {
-    console.log("[SOCKET]Socket session error!");
-    next();
-  } else {
-    console.log("[SOCKET]Socket authorized.");
+  var user_id = "";
+  var user_name = "";
+  if (socket.request.session && socket.request.session.user) {
     socket.user = { ...socket.request.session.user };
-    redisClient.hmset(
-      `userid:${socket.user.userid}`,
-      "userid", // key
-      socket.user.userid, // value
-      "username",
-      socket.user.username,
-    );
-    next();
+    user_id = socket.user.userid;
+    user_name = socket.user.username;
   }
+  else if (socket.handshake && socket.handshake.query) {
+    console.log("[SOCKET]Socket session empty! Using socket handshake query params...");
+    user_id = socket.handshake.query["user_id"];
+    user_name = socket.handshake.query["user_name"];
+    console.log("socket.handshake.query:", socket.handshake.query)
+  }
+
+  redisClient.hmset(
+    `userid:${user_id}`,
+    "userid", // key
+    user_id, // value
+    "username",
+    user_name,
+  );
+
+  console.log("[SOCKET]Socket Redis authorized.");
+  next();
 };
+
 
 module.exports.addFriend = async (socket, data, cb) => {
   if(!socket.user || !socket.user.userid){
