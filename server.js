@@ -38,7 +38,7 @@ const { json } = require("body-parser");
 const { InMemorySessionStore } = require("./utils/sessionStore");
 
 const {  sessionMiddleware,  wrap,} = require("./controllers/serverController");
-const { authorizeUser, addFriend } = require("./controllers/socketController");
+const { initializeUser, addFriend } = require("./controllers/socketController");
 
 
 
@@ -243,8 +243,9 @@ const io = new Server(server, {
 });
 
 io.use(wrap(sessionMiddleware));
-io.use(authorizeUser); // excute once
+
 io.on("connection", async (socket) => {
+  initializeUser(socket);
   console.log(`A User connected, socket id is:${socket.id}`);
   console.log("==========[SOCKET]scoketio session user " + JSON.stringify(socket.request.session.user));
 
