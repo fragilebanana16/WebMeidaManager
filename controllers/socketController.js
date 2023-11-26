@@ -1,7 +1,8 @@
 const redisClient = require("../utils/redis");
 const User = require("../models/user");
+const { crossOriginResourcePolicy } = require("helmet");
 
-const parseFriendList = async friends => {
+const parseDBFriendList = async friends => {
   const friendList = [];
   for (let friend of friends) {
     const friendStatus= await redisClient.hget(
@@ -16,6 +17,49 @@ const parseFriendList = async friends => {
     });
   }
   return friendList;
+};
+
+
+module.exports.parseRedisFriendList = async (user_id) => {
+  const friendList = await redisClient.lrange(    `friends:${user_id}`,    0,    -1  );
+  const newFriendList = [];
+  for (let friend of friendList) {
+    const parsedFriend = friend.split(".");
+    const friendStatus= await redisClient.hget(
+      `userid:${parsedFriend[1]}`,
+      "userstatus"
+    );
+
+    newFriendList.push({
+      username: parsedFriend[0],
+      userid: parsedFriend[1],
+      userstatus: friendStatus,
+    });
+  }
+  return newFriendList;
+}
+
+module.exports.disConnect =  async socket => {
+  console.log(socket.handshake.query["user_name"] + " disconnected...")
+  var userid = socket.handshake.query["user_id"];
+  await redisClient.hset(
+    `userid:${userid}`,
+    "userstatus",
+    "IsOffline"
+  );
+
+  // inform this user is disconnected
+  socket.broadcast.emit("user_disconnected", userid);
+  
+  // const friendList = await redisClient.lrange(
+  //   `friends:${socket.user.username}`,
+  //   0,
+  //   -1
+  // );
+  // const friendRooms = await parseFriendList(friendList).then(friends =>
+  //   friends.map(friend => friend.userid)
+  // );
+  // socket.to(friendRooms).emit("connected", false, socket.user.username);
 };
 
 module.exports.initializeUser = async (socket) => {
@@ -50,15 +94,15 @@ module.exports.initializeUser = async (socket) => {
     "_id name"
   );
 
-  const parsedFriends = await parseFriendList(this_user.friends)
-  const formattedFriendsInfo = parsedFriends.map(f => [f.username, f.userid].join("."));
+  const dbParsedFriends = await parseDBFriendList(this_user.friends)
+  const formattedFriendsInfo = dbParsedFriends.map(f => [f.username, f.userid].join("."));
   await redisClient.del(`friends:${user_id}`);
   await redisClient.lpush(
     `friends:${user_id}`,
     ...formattedFriendsInfo
   );
 
-  socket.emit("initFriends", parsedFriends);
+  socket.emit("initFriends", dbParsedFriends);
 
   // todo: init friends
   console.log("[SOCKET]Socket Redis authorized.");

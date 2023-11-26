@@ -38,7 +38,7 @@ const { json } = require("body-parser");
 const { InMemorySessionStore } = require("./utils/sessionStore");
 
 const {  sessionMiddleware,  wrap,} = require("./controllers/serverController");
-const { initializeUser, addFriend } = require("./controllers/socketController");
+const { initializeUser, addFriend, parseRedisFriendList, disConnect } = require("./controllers/socketController");
 
 
 
@@ -283,16 +283,16 @@ io.on("connection", async (socket) => {
   // console.log(JSON.stringify(socket.handshake.query));
   const user_id = socket.handshake.query["user_id"];
 
-
-
   socket.broadcast.emit("user_connected", {
     userSocketID: socket.id,
     userID: user_id,
   });
 
+  socket.on("disconnecting", () => disConnect(socket));
+
   socket.on("disconnect", () => {
-    console.log("one user_disconnected"); 
     socket.broadcast.emit("user_disconnected", user_id);
+    
   });
 
   if (user_id != null && Boolean(user_id)) {
@@ -383,6 +383,11 @@ io.on("connection", async (socket) => {
     callback(onlineUsers);
   });
 
+  socket.on("get_friends", async (user_id, callback) => {
+    var friends = await parseRedisFriendList(user_id);
+    callback(friends);
+  });
+
   socket.on("start_conversation", async (data) => {
     // data: {to: from:}
 
@@ -443,12 +448,12 @@ io.on("connection", async (socket) => {
 
     const to_user = await User.findById(to);
     const from_user = await User.findById(from);
-    console.log("----------------------------------");
-    console.log("to:" + to_user);
-    console.log("from:" + from_user);
-    console.log("----------------------------------");
-    console.log("Finding to:" + to);
-    console.log("Finding from:" + from);
+    // console.log("----------------------------------");
+    // console.log("to:" + to_user);
+    // console.log("from:" + from_user);
+    // console.log("----------------------------------");
+    // console.log("Finding to:" + to);
+    // console.log("Finding from:" + from);
     // message => {to, from, type, created_at, text, file}
 
     const new_message = {
