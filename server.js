@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const fs = require('fs');
 const dotenv = require("dotenv");
 dotenv.config({ path: "./config.env" });
+const redisClient = require("./utils/redis");
 
 const multer = require('multer');
 const storage = multer.diskStorage({
@@ -283,10 +284,10 @@ io.on("connection", async (socket) => {
   // console.log(JSON.stringify(socket.handshake.query));
   const user_id = socket.handshake.query["user_id"];
 
-  socket.broadcast.emit("user_connected", {
-    userSocketID: socket.id,
-    userID: user_id,
-  });
+  // socket.broadcast.emit("user_connected", {
+  //   userSocketID: socket.id,
+  //   userID: user_id,
+  // });
 
   socket.on("disconnecting", () => disConnect(socket));
 
@@ -364,18 +365,46 @@ io.on("connection", async (socket) => {
     });
   });
 
-  socket.on("get_direct_conversations", async ({ user_id }, callback) => {
-    console.log("server get_direct_conversations");
-
-    const existing_conversations = await OneToOneMessage.find({
-      participants: { $all: [user_id] },
-    }).populate("participants", "name avatar _id email status");
-
-    // db.books.find({ authors: { $elemMatch: { name: "John Smith" } } })
-
-    // console.log("existing_conversations-" + existing_conversations);
+  socket.on("get_direct_conversations", async ({ user_id, room_id }, callback) => {
+    let relatedConversationKeys = await redisClient.keys(`conversation:*=>*${user_id}*`);
+    const existing_conversations = [];
+    for (let index = 0; index < relatedConversationKeys.length; index++) {
+      const element = relatedConversationKeys[index];
+      const conversationFromRedis = await redisClient.hget(`${element}`,  "conversation" );
+      existing_conversations.push(JSON.parse(conversationFromRedis));
+    }
 
     callback(existing_conversations);
+    // =========================DB approch=========================
+    // const existing_conversations = await OneToOneMessage.find({
+    //   participants: { $all: [user_id] },
+    // }).populate("participants", "name avatar _id email status");
+
+    // callback(existing_conversations);
+    // =========================DB approch=========================
+
+    // console.log(JSON.stringify(parsedConversations) );
+    
+    // const msgQuery = await redisClient.lrange(`conversation:${socket.user.userid}`,  0,   -1 );
+  
+    // // to.from.content
+    // const messages = msgQuery.map(msgStr => {
+    //   const parsedStr = msgStr.split(".");
+    //   return { to: parsedStr[0], from: parsedStr[1], content: parsedStr[2] };
+    // });
+  
+    // if (messages && messages.length > 0) {
+    //   socket.emit("messages", messages);
+    // }
+
+    // for (let conversation of existing_conversations) {
+    //   for (let message of conversation.messages) {
+    //     const messageString = [message.to, message.from, message.text].join(".");
+    //     await redisClient.lpush(`conversation:${conversation.participants.map(p => p.id).join(".")}`,  messageString  );
+    //   }
+    // }
+
+
   });
 
   socket.on("get_online_users", async (callback) => {
@@ -423,39 +452,45 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("get_messages", async (data, callback) => {
-    try {
-      const msgs = await OneToOneMessage.findById(
-        data.conversation_id
-      ).select("messages");
-      if(msgs){
-        callback(msgs.messages);
+    let conversationKeys = await redisClient.keys(`conversation:${data.conversation_id}=>*`);
+    if (conversationKeys && conversationKeys[0]) {
+      let conversation = await redisClient.hget(`${conversationKeys[0]}`, 'conversation');
+      console.log("=============get_messages conversation:", conversation)
+      if (conversation) {
+        let parsedConversation = JSON.parse(conversation);
+        callback(parsedConversation.messages);
       }
       else{
-        console.log("get_messages msgs null")
+        console.log("get_messages from redis null")
       }
-    } catch (error) {
-      console.log(error);
     }
+
+
+
+    
+
+    // =========================DB approch=========================
+    // try {
+    //   const msgs = await OneToOneMessage.findById(
+    //     data.conversation_id
+    //   ).select("messages");
+    //   if(msgs){
+    //     callback(msgs.messages);
+    //   }
+    //   else{
+    //     console.log("get_messages msgs null")
+    //   }
+    // } catch (error) {
+    //   console.log(error);
+    // }
+    // =========================DB approch=========================
+
   });
 
   // Handle incoming text/link messages
   socket.on("text_message", async (data) => {
-    console.log("Received message:", data);
-
-    // data: {to, from, text}
-
     const { message, conversation_id, from, to, type } = data;
-
-    const to_user = await User.findById(to);
-    const from_user = await User.findById(from);
-    // console.log("----------------------------------");
-    // console.log("to:" + to_user);
-    // console.log("from:" + from_user);
-    // console.log("----------------------------------");
-    // console.log("Finding to:" + to);
-    // console.log("Finding from:" + from);
-    // message => {to, from, type, created_at, text, file}
-
+    console.log(message);
     const new_message = {
       to: to,
       from: from,
@@ -464,25 +499,88 @@ io.on("connection", async (socket) => {
       text: message,
     };
 
-    // fetch OneToOneMessage Doc & push a new message to existing conversation
-    const chat = await OneToOneMessage.findById(conversation_id);
-    chat.messages.push(new_message);
-    // save to db`
-    await chat.save({ new: true, validateModifiedOnly: true });
+    let participantsStr = [to, from].join(".");
+    let conversationRedisKeyPattern = `conversation:${conversation_id}=>*`;
+    var conversationRedisKeys = await redisClient.keys(`${conversationRedisKeyPattern}`);
+    for (let index = 0; index < conversationRedisKeys.length; index++) {
+      const conversationRedisKey = conversationRedisKeys[index];
+      var redisConversation = await redisClient.hget(`${conversationRedisKey}`, "conversation");
+      var parsedConverstaion = JSON.parse(redisConversation);
+      if(parsedConverstaion && parsedConverstaion.messages)
+      {
+        var messageCount = parsedConverstaion.messages.push(new_message);
+        console.log(JSON.stringify(parsedConverstaion));
+        await redisClient.del(`${conversationRedisKey}`);
+        await redisClient.hset(`${conversationRedisKey}`, "conversation", JSON.stringify(parsedConverstaion));
+        console.log("================================parsedConverstaion======================");
+        console.log(messageCount);
+      }
+      else{
+        console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!text_message cant find in redis!!!!!!!!!!!!!!!!!!");
+      }
+    }
+   
 
-    // emit incoming_message -> to user
-
-    console.log("Broadcast two sides to_user:" + to_user?.socket_id + ":" + message + "conversation_id:" + conversation_id);
-    io.to(to_user?.socket_id).emit("new_message", {
+    const to_user_socket_id = await redisClient.hget(`userid:${to}`, "socketId");
+    const from_user_socket_id = await redisClient.hget(`userid:${from}`, "socketId");
+    io.to(to_user_socket_id).emit("new_message", {
       conversation_id,
       message: new_message,
     });
-    console.log("Broadcast two sides from_user:" + from_user?.socket_id + ":" + message + "conversation_id:" + conversation_id);
-    // emit outgoing_message -> from user
-    io.to(from_user?.socket_id).emit("new_message", {
+
+    io.to(from_user_socket_id).emit("new_message", {
       conversation_id,
       message: new_message,
     });
+
+    // await redisClient.lpush(`chat:${message.from}`, messageString);
+  
+    // socket.to(message.to).emit("dm", message);
+
+
+// db here
+    // data: {to, from, text}
+
+    // const to_user = await User.findById(to);
+    // const from_user = await User.findById(from);
+    // // console.log("----------------------------------");
+    // // console.log("to:" + to_user);
+    // // console.log("from:" + from_user);
+    // // console.log("----------------------------------");
+    // // console.log("Finding to:" + to);
+    // // console.log("Finding from:" + from);
+    // // message => {to, from, type, created_at, text, file}
+
+    // const new_message = {
+    //   to: to,
+    //   from: from,
+    //   type: type,
+    //   created_at: Date.now(),
+    //   text: message,
+    // };
+
+    // // fetch OneToOneMessage Doc & push a new message to existing conversation
+    // const chat = await OneToOneMessage.findById(conversation_id);
+    // chat.messages.push(new_message);
+    // // save to db`
+    // await chat.save({ new: true, validateModifiedOnly: true });
+
+    // // emit incoming_message -> to user
+
+    // console.log("Broadcast two sides to_user:" + to_user?.socket_id + ":" + message + "conversation_id:" + conversation_id);
+    // io.to(to_user?.socket_id).emit("new_message", {
+    //   conversation_id,
+    //   message: new_message,
+    // });
+    // console.log("Broadcast two sides from_user:" + from_user?.socket_id + ":" + message + "conversation_id:" + conversation_id);
+    // // emit outgoing_message -> from user
+    // io.to(from_user?.socket_id).emit("new_message", {
+    //   conversation_id,
+    //   message: new_message,
+    // });
+
+// db here
+
   });
 
   // handle Media/Document Message

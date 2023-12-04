@@ -1,7 +1,7 @@
 const redisClient = require("../utils/redis");
 const User = require("../models/user");
 const { crossOriginResourcePolicy } = require("helmet");
-
+const OneToOneMessage = require("../models/OneToOneMessage");
 const parseDBFriendList = async friends => {
   const friendList = [];
   for (let friend of friends) {
@@ -86,14 +86,17 @@ module.exports.initializeUser = async (socket) => {
     user_name,
     "userstatus",
     "IsOnline", // IsAway, IsOnline, IsOffline, IsBusy
+    "socketId",
+     socket.id
   );
 
-  // initilize user friends to redis
+  // 1.find user friends in db
   const this_user = await User.findById(user_id).populate(
     "friends",
     "_id name"
   );
 
+  // 2.store in redis
   const dbParsedFriends = await parseDBFriendList(this_user.friends)
   const formattedFriendsInfo = dbParsedFriends.map(f => [f.username, f.userid].join("."));
   await redisClient.del(`friends:${user_id}`);
@@ -102,9 +105,36 @@ module.exports.initializeUser = async (socket) => {
     ...formattedFriendsInfo
   );
 
-  socket.emit("initFriends", dbParsedFriends);
+  const friendRooms = dbParsedFriends.map(friend => friend.userid);
+  if (friendRooms.length > 0)
+  {
+    socket.to(friendRooms).emit("user_connected", "IsOnline", user_name, user_id);
+    console.log("[SOCKET]user_connected send to rooms.");
+  }
 
-  // todo: init friends
+  // 1.find conversation from db
+  const existing_conversations = await OneToOneMessage.find({
+    participants: { $all: [user_id] },
+  }).populate("participants", "name avatar _id email status");
+
+  // console.log(existing_conversations[0].participants.map(p => p.id).join("."));
+
+  // 2.store in redis
+  for (let conversation of existing_conversations) {
+    let participantsStr = conversation.participants.map(p => p.id).join(".");
+
+    let conversationRedisKey = `conversation:${conversation._id}=>${participantsStr}`;
+    let keyExist = await redisClient.exists(`${conversationRedisKey}`);
+    if(keyExist === 1)
+    {
+      console.log(`==================================${conversationRedisKey} exists`);
+      continue;
+    }
+
+    await redisClient.del(`${conversationRedisKey}`);
+    await redisClient.hset(`${conversationRedisKey}`, "conversation", JSON.stringify(conversation)); // use json.parse to see the object
+  }
+
   console.log("[SOCKET]Socket Redis authorized.");
 };
 
