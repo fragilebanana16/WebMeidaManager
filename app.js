@@ -108,20 +108,5 @@ app.use(function (req, res, next) {
 });
 app.use(routes);
 
-app.get('/post', async (req,res) => {
-  res.json(
-  [
-      {_id:'1',title:'first',summary:'1sum',cover:'stock-1.jpg',content:'something just like this1',createdAt:'2024-02-18T03:18:24.208Z',author:'admin1'},
-      {_id:'2',title:'second',summary:'2sum',cover:'stock-2.jpg',content:'something just like this2',createdAt:'2024-02-18T03:18:24.208Z',author:'admin2'},
-      {_id:'3',title:'third',summary:'3sum',cover:'stock-3.jpg',content:'something just like this3',createdAt:'2024-02-18T03:18:24.208Z',author:'admin3'},
-  ]
-  );
-  // res.json(
-  //   await Post.find()
-  //     .populate('author', ['username'])
-  //     .sort({createdAt: -1})
-  //     .limit(20)
-  // );
-});
 
 module.exports = app;
