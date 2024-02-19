@@ -55,6 +55,7 @@ app.use(
   })
 );
 
+// note if u want a img under /public/upload src is going to be "http://localhost:3001/upload" without public in path
 app.use(express.static(__dirname + '/public'));
 
 // app.use(cookieParser());

@@ -187,14 +187,21 @@ app.post('/file/process', upload.single("inputName"), (req, res) => {
 
 // blog
 app.get('/post', async (req,res) => {
+
+  let postData = [
+    {_id:'1',title:'A requirement for text-overflow: ellipsis; to work is a one-line version of white-space (pre, nowrap etc). Which means the text will never reach the second line.',summary:'The title is not clickbait, the message is abrupt “Stop Using localStorage!” there is no ambiguity here and we are not holding hands and singing kumbay to soften the blow. Will this be seen?',
+    cover:'stock-1.jpg',content:'something just like this1',createdAt:'2024-02-18T03:18:24.208Z',author:'very long long long admin1'},
+    {_id:'2',title:'second',summary:'2sum',cover:'stock-2.jpg',content:'something just like this2',createdAt:'2024-02-18T03:18:24.208Z',author:'admin2'},
+    {_id:'3',title:'third',summary:'3sum',cover:'stock-3.jpg',content:'something just like this3',createdAt:'2024-02-18T03:18:24.208Z',author:'admin3'},
+];
+
   res.json(
-  [
-      {_id:'1',title:'A requirement for text-overflow: ellipsis; to work is a one-line version of white-space (pre, nowrap etc). Which means the text will never reach the second line.',summary:'The title is not clickbait, the message is abrupt “Stop Using localStorage!” there is no ambiguity here and we are not holding hands and singing kumbay to soften the blow. Will this be seen?',
-      cover:'stock-1.jpg',content:'something just like this1',createdAt:'2024-02-18T03:18:24.208Z',author:'very long long long admin1'},
-      {_id:'2',title:'second',summary:'2sum',cover:'stock-2.jpg',content:'something just like this2',createdAt:'2024-02-18T03:18:24.208Z',author:'admin2'},
-      {_id:'3',title:'third',summary:'3sum',cover:'stock-3.jpg',content:'something just like this3',createdAt:'2024-02-18T03:18:24.208Z',author:'admin3'},
-  ]
+    [...postData, ...await Post.find()
+      .populate('author', ['username'])
+      .sort({createdAt: -1})
+      .limit(20)]
   );
+
   // res.json(
   //   await Post.find()
   //     .populate('author', ['username'])
@@ -213,7 +220,16 @@ app.post('/post', upload.single('file'), async (req,res) => {
   // 3.too slow 4.verify? 5.create failed? refresh the page while uploading?
   // 6.why 16kb at start
   console.log(req.file)
-  res.json("ok");
+  const { title, summary, content } = req.body;
+  const postDoc = await Post.create({
+    title,
+    summary,
+    content,
+    cover: req.file.filename,
+    // author: "not now",
+  });
+  res.json(postDoc);
+
   // const {token} = req.cookies;
   // jwt.verify(token, secret, {}, async (err,info) => {
   //   if (err) throw err;
